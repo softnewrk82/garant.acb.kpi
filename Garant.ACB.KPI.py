@@ -53,6 +53,7 @@ pass_da = f_decrypt(var_encrypt_var_pass_da, load_key_external()).decode("utf-8"
 
 var_link = "https://disk.yandex.ru/i/1hcv17sM3c_U1g"
 var_link_active_base = "https://disk.yandex.ru/i/3J0JEqXQFSHF4g"
+var_link_active_base_red_merge = "https://disk.yandex.ru/i/3J0JEqXQFSHF4g"
 var_link_report_day = "https://disk.yandex.ru/i/cd3vCPYQ-Ym-DQ"
 var_link_extension_base = "https://disk.yandex.ru/i/p5jb0dkO49y8TA"
 var_link_extension_inn_base = "https://disk.yandex.ru/i/KlVaBLhgy42aAw"
@@ -1148,6 +1149,185 @@ with DAG(
         full_name_base_for_active_base = f'Гарант. Активная база (за весь период)'
         df_active_base_red.to_excel(f"{full_name_base_for_active_base}.xlsx")
 
+# _________________________________________________________________________________________________________________________________
+
+        # ___________________________________________________
+        # ___________________________________________________
+        # ___________________________________________________
+        temp_report_date_now = datetime.datetime.now().date()
+        temp_report_date_for_kpi = datetime.datetime.now().date() - relativedelta(months=1)
+        
+        if len(str(temp_report_date_now.month)) == 1:
+            var_month = '0' + str(temp_report_date_now.month)
+        else:
+            var_month = str(temp_report_date_now.month)
+            
+        report_date_for_kpi = datetime.date(temp_report_date_for_kpi.year, temp_report_date_for_kpi.month, 1)
+        last_date_report_date_for_kpi = report_date_for_kpi + relativedelta(months=1,days=-1)
+        print('report_date_for_kpi last_date_report_date_for_kpi:',report_date_for_kpi, last_date_report_date_for_kpi)
+        # ___________________________________________________
+        # ___________________________________________________
+        # ___________________________________________________
+        
+        try:
+            df_active_base_red["Период"] = df_active_base_red["Период"].apply(lambda x: x.date())
+        except:
+            pass
+        try:
+            df_active_base_red["ИНН"] = df_active_base_red["ИНН"].apply(lambda x: str(int(x)))\
+        except:
+            pass
+        try: 
+            df_active_base_red["Дата реализации"] = df_active_base_red["Дата реализации"].apply(lambda x: x.date())
+        except:
+            pass
+        try:
+            df_active_base_red["Дата окончания подписки (по реализациям)"] = df_active_base_red["Дата окончания подписки (по реализациям)"].apply(lambda x: x.date())
+        except:
+            pass
+        # ___________________________________________________
+        # ___________________________________________________
+        # ___________________________________________________
+        
+        df_active_base_red_for_plan = df_active_base_red[(df_active_base_red["Период"] == report_date_for_kpi) & (df_active_base_red["Дата окончания подписки (по реализациям)"] == last_date_report_date_for_kpi)]
+        # ___________________________________________________
+        # ___________________________________________________
+        # ___________________________________________________
+        # dir_path = f'Z:/garant/kpi_by_list/{temp_report_date_for_kpi.year}-{var_month}/'
+        dir_path = f'Z:/garant/kpi_by_list/{temp_report_date_for_kpi.year}-{var_month}/'
+        
+        list_files = os.listdir(dir_path)
+        
+        df_active_base_red_template_concat = pd.read_excel(dir_path + list_files[0])
+        df_active_base_red_concat = pd.DataFrame(columns=df_active_base_red_template_concat.columns.to_list())
+        df_active_base_red_concat["МС (по спискам)"] = np.nan
+        
+        for i_file in list_files:
+            print(i_file)
+            
+            temp_file = pd.read_excel(dir_path + i_file)
+            var_ms_name = i_file.replace('.xlsx', '').split(' ')[-1]
+            temp_file["МС (по спискам)"] = var_ms_name
+            
+            df_active_base_red_concat = pd.concat([
+                df_active_base_red_concat,
+                temp_file
+            ]).reset_index(drop=True)
+        # ___________________________________________________
+        # ___________________________________________________
+        # ___________________________________________________
+        
+        df_active_base_red_concat_red = df_active_base_red_concat[[
+         'Название (ФИО)',
+         'ИНН',
+         'Ответственный',
+         'Подразделение(ответственного)',
+         'МС (по спискам)',
+        ]]
+        # ___________________________________________________
+        # ___________________________________________________
+        # ___________________________________________________
+        df_active_base_red_concat_red["ИНН"] = df_active_base_red_concat_red["ИНН"].apply(lambda x: str(int(x)))
+        df_active_base_red_for_plan["ИНН"] = df_active_base_red_for_plan["ИНН"].apply(lambda x: str(int(x)))
+        # ___________________________________________________
+        # ___________________________________________________
+        # ___________________________________________________
+        df_active_base_red_for_plan_red = df_active_base_red_for_plan[[
+         'Номер реализации',
+         'дата документа (реализации)',
+         'ИНН',
+         'Клиент',
+         'Подразделение',
+         'Ответственный менеджер',
+         'Автор документа',
+         'Дата реализации',
+         'Период подписки',
+         'Дата окончания подписки (по реализациям)',
+         'Период',
+         # 'Разбивка',
+         'Стоимость',
+         'Цена.Месяц',
+        ]].reset_index(drop=True)
+        # ___________________________________________________
+        # ___________________________________________________
+        # ___________________________________________________
+        var_plan_ext_price = round(df_active_base_red_for_plan_red["Цена.Месяц"].sum(),2)
+        var_plan_ext_cost = round(df_active_base_red_for_plan_red["Стоимость"].sum(),2)
+        print('var_plan_ext_price:', var_plan_ext_price)
+        print('var_plan_ext_cost:', var_plan_ext_cost)
+        # ___________________________________________________
+        # ___________________________________________________
+        # ___________________________________________________
+        df_active_base_red_merge = df_active_base_red_for_plan_red.merge(df_active_base_red_concat_red, how='left', left_on=['ИНН'], right_on=['ИНН'])
+        df_active_base_red_merge["Статус"] = np.nan
+        df_active_base_red_merge["Детализация по статусу"] = np.nan
+        df_active_base_red_merge["Продлено.Цена.Месяц"] = np.nan
+        df_active_base_red_merge["Продлено.Стоимость"] = np.nan
+        
+        df_active_base_red_red = df_active_base_red[(df_active_base_red["Период"] > report_date_for_kpi)][[
+         'Номер реализации',
+         'ИНН',
+         'Дата реализации',
+         'Период подписки',
+         'Дата окончания подписки (по реализациям)',
+         'Период',
+         'Разбивка',
+         'Стоимость',
+         'Цена.Месяц',
+        ]].sort_values(["ИНН"]).reset_index(drop=True)
+        
+        for i_index_inn in range(len(df_active_base_red_merge["ИНН"])):
+            var_temp_inn = df_active_base_red_merge["ИНН"].iloc[i_index_inn]
+            temp_arr_status = df_active_base_red_red[df_active_base_red_red["ИНН"] == var_temp_inn]["Разбивка"].to_list()
+            temp_arr = df_active_base_red_red[df_active_base_red_red["ИНН"] == var_temp_inn]
+        
+        
+            temp_list_index = []
+            
+            if 'Продление' in temp_arr_status:
+                # df_active_base_red_merge["Статус"].iloc[i_index_inn] = 'Продление'
+                temp_list_index.append(temp_arr_status.index('Продление'))
+            elif 'Восстановление' in temp_arr_status:
+                # df_active_base_red_merge["Статус"].iloc[i_index_inn] = 'Восстановление'
+                temp_list_index.append(temp_arr_status.index('Продление'))
+            elif 'Новый клиент' in temp_arr_status:
+                # df_active_base_red_merge["Статус"].iloc[i_index_inn] = 'Новый клиент'
+                temp_list_index.append(temp_arr_status.index('Продление'))
+        
+            if len(temp_list_index) != 0:
+                min_index = min(temp_list_index)
+                df_active_base_red_merge["Статус"].iloc[i_index_inn] = temp_arr_status[int(min_index)]
+        
+                temp_dict = {}
+                temp_dict["Номер реализации"] = temp_arr["Номер реализации"].iloc[int(min_index)]
+                temp_dict["Период"] = temp_arr["Период"].iloc[int(min_index)]
+                temp_dict["Дата реализации"] = temp_arr["Дата реализации"].iloc[int(min_index)]
+                temp_dict["Период подписки"] = temp_arr["Период подписки"].iloc[int(min_index)]
+                temp_dict["Дата окончания подписки (по реализациям)"] = temp_arr["Дата окончания подписки (по реализациям)"].iloc[int(min_index)]
+                temp_dict["Стоимость"] = temp_arr["Стоимость"].iloc[int(min_index)]
+                temp_dict["Цена.Месяц"] = temp_arr["Цена.Месяц"].iloc[int(min_index)]
+                
+                df_active_base_red_merge["Детализация по статусу"].iloc[i_index_inn] = str(temp_dict)
+                df_active_base_red_merge["Продлено.Цена.Месяц"].iloc[i_index_inn] = temp_arr["Цена.Месяц"].iloc[int(min_index)]
+                df_active_base_red_merge["Продлено.Стоимость"].iloc[i_index_inn] = temp_arr["Стоимость"].iloc[int(min_index)]
+            else:
+                df_active_base_red_merge["Статус"].iloc[i_index_inn] = 'Отпад'
+        # ___________________________________________________
+        # ___________________________________________________
+        # ___________________________________________________
+        var_ext_success_price = round(df_active_base_red_merge[~df_active_base_red_merge["Детализация по статусу"].isna()]["Продлено.Цена.Месяц"].sum(),2)
+        var_ext_success_cost = round(df_active_base_red_merge[~df_active_base_red_merge["Детализация по статусу"].isna()]["Продлено.Стоимость"].sum(),2)
+        
+        print('var_ext_success_price:', var_ext_success_price)
+        print('var_ext_success_cost:', var_ext_success_cost)
+        # ___________________________________________________
+        # ___________________________________________________
+        # ___________________________________________________
+
+        full_name_base_df_active_base_red = f'Гарант. База рассчетов плановых показателей (на отчетный период)'
+        df_active_base_red_merge.to_excel(f"{full_name_base_df_active_base_red}.xlsx")
+
+        # _________________________________________________________________________________________________________________________________
         var_TOKEN = temp_var_TOKEN
 
         date_now = datetime.datetime.now().date()
@@ -1199,15 +1379,15 @@ with DAG(
             upload_file(f'./{df_filtered_sort_for_extension_inn_name}.xlsx', f'{path_for_upl_file}/{df_filtered_sort_for_extension_inn_name}.xlsx', True)
         except:
             print(f'{df_filtered_sort_for_extension_inn_name} uploading failed.')
-           
-            
+        try:
+            upload_file(f'./{full_name_base_df_active_base_red}.xlsx', f'{path_for_upl_file}/{full_name_base_df_active_base_red}.xlsx', True)
+        except:
+            print(f'{full_name_base_df_active_base_red} uploading failed.')
         try:
             upload_file(f'./{full_name_base_for_active_base_report_month}.xlsx', f'{path_for_upl_file}/{full_name_base_for_active_base_report_month}.xlsx', True)
         except:
             print(f'{full_name_base_for_active_base_report_month} uploading failed.')            
-            
-            
-        
+
         print(q_arr_extension_curr_month, q_arr_loss_curr_month, q_percent_of_compl)
         print('CURR_______________________________________')
         print(q_arr_extension_curr_month, q_arr_loss_curr_month, q_percent_of_compl, q_arr_loss_curr_month_without_1, q_percent_of_compl_without_1, q_arr_acb_curr_month, q_arr_new_curr_month, q_arr_rec_curr_month,)
@@ -1215,15 +1395,13 @@ with DAG(
         print(q_arr_extension_prev_month, q_arr_loss_prev_month, q_percent_of_compl_prev, q_arr_loss_prev_month_without_1, q_percent_of_compl_without_1_prev, q_arr_acb_prev_month, q_arr_new_prev_month, q_arr_rec_prev_month,)
         print('___________________________________________')
 
-        return q_arr_extension_curr_month, q_arr_loss_curr_month, q_percent_of_compl, q_arr_loss_curr_month_without_1, q_percent_of_compl_without_1, q_arr_acb_curr_month, q_arr_new_curr_month, q_arr_rec_curr_month, q_arr_extension_prev_month, q_arr_loss_prev_month, q_percent_of_compl_prev, q_arr_loss_prev_month_without_1, q_percent_of_compl_without_1_prev, q_arr_acb_prev_month, q_arr_new_prev_month, q_arr_rec_prev_month
-
-
+        return q_arr_extension_curr_month, q_arr_loss_curr_month, q_percent_of_compl, q_arr_loss_curr_month_without_1, q_percent_of_compl_without_1, q_arr_acb_curr_month, q_arr_new_curr_month, q_arr_rec_curr_month, q_arr_extension_prev_month, q_arr_loss_prev_month, q_percent_of_compl_prev, q_arr_loss_prev_month_without_1, q_percent_of_compl_without_1_prev, q_arr_acb_prev_month, q_arr_new_prev_month, q_arr_rec_prev_month, var_plan_ext_price, var_plan_ext_cost, var_ext_success_price, var_ext_success_cost
 
     def send_message():
         
         
-        global q_arr_extension_curr_month, q_arr_loss_curr_month, q_percent_of_compl, q_arr_loss_curr_month_without_1, q_percent_of_compl_without_1, q_arr_acb_curr_month, q_arr_new_curr_month, q_arr_rec_curr_month, q_arr_extension_prev_month, q_arr_loss_prev_month, q_percent_of_compl_prev, q_arr_loss_prev_month_without_1, q_percent_of_compl_without_1_prev, q_arr_acb_prev_month, q_arr_new_prev_month, q_arr_rec_prev_month
-        q_arr_extension_curr_month, q_arr_loss_curr_month, q_percent_of_compl, q_arr_loss_curr_month_without_1, q_percent_of_compl_without_1, q_arr_acb_curr_month, q_arr_new_curr_month, q_arr_rec_curr_month, q_arr_extension_prev_month, q_arr_loss_prev_month, q_percent_of_compl_prev, q_arr_loss_prev_month_without_1, q_percent_of_compl_without_1_prev, q_arr_acb_prev_month, q_arr_new_prev_month, q_arr_rec_prev_month = algoritm()
+        global q_arr_extension_curr_month, q_arr_loss_curr_month, q_percent_of_compl, q_arr_loss_curr_month_without_1, q_percent_of_compl_without_1, q_arr_acb_curr_month, q_arr_new_curr_month, q_arr_rec_curr_month, q_arr_extension_prev_month, q_arr_loss_prev_month, q_percent_of_compl_prev, q_arr_loss_prev_month_without_1, q_percent_of_compl_without_1_prev, q_arr_acb_prev_month, q_arr_new_prev_month, q_arr_rec_prev_month, var_plan_ext_price, var_plan_ext_cost, var_ext_success_price, var_ext_success_cost
+        q_arr_extension_curr_month, q_arr_loss_curr_month, q_percent_of_compl, q_arr_loss_curr_month_without_1, q_percent_of_compl_without_1, q_arr_acb_curr_month, q_arr_new_curr_month, q_arr_rec_curr_month, q_arr_extension_prev_month, q_arr_loss_prev_month, q_percent_of_compl_prev, q_arr_loss_prev_month_without_1, q_percent_of_compl_without_1_prev, q_arr_acb_prev_month, q_arr_new_prev_month, q_arr_rec_prev_month, var_plan_ext_price, var_plan_ext_cost, var_ext_success_price, var_ext_success_cost = algoritm()
 
         
         var_login_da = str(login_da)
@@ -1311,7 +1489,7 @@ with DAG(
 
 
 
-        if date_now.day in list(range(1,5)):
+        if date_now.day in list(range(1,6)):
             
             parameters_real = {
 
@@ -1331,6 +1509,12 @@ with DAG(
                 Гарант. Активная база от {datetime.datetime.now().date() + relativedelta(days=-1)}
                 {var_link_active_base} \n
 
+                План по продлению составил: {var_plan_ext_price} (по Цена.Месяц), {var_plan_ext_cost} (по Стоимость), 
+                Уже продлено: {var_ext_success_price} (по Цена.Месяц), {var_ext_success_cost} (по Стоимость). \n
+                
+                Детализация по плану продления от {datetime.datetime.now().date() + relativedelta(days=-1)}
+                {var_link_active_base} \n
+                
                 """, 
                 
                 "document": None,
